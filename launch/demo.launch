@@ -1,0 +1,16 @@
+<launch>
+  <group ns="turtlesim1">
+    <node pkg="turtlesim" name="ts" type="turtlesim_node">
+      <param name="background_r" value="0"/>
+      <param name="background_g" value="0"/>
+      <param name="background_b" value="0"/>
+    </node>
+    <node pkg="turtlesim" name="kbd" type="turtle_teleop_key"
+          output="screen"/>
+    <node pkg="follower_turtle" name="ft" type="follower_node">
+      <param name="initial/pen" value="[26,146,106,2]" type="yaml"/>
+      <param name="velocity/scale" value="1"/>
+      <param name="velocity/max" value="5"/>
+    </node>
+  </group>
+</launch>

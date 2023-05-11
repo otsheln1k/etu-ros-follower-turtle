@@ -163,16 +163,30 @@ class FollowerNode:
         signal.signal(signal.SIGTERM, savesigterm)
 
 
+def usage():
+    print(f'''\
+usage: {sys.argv[0]} [TARGET]
+If TARGET is not specified, it defaults to turtle1
+
+ROS parameters used:
+  - initial/x
+  - initial/y
+  - initial/t -- initial theta
+  - velocity/scale
+  - velocity/max
+  - initial/pen -- list of 5 values, see turtlesim/Pose
+''', end="", file=sys.stderr)
+
 def main():
     argc = len(sys.argv)
     target = 'turtle1'
-    if argc == 2:
+    if '--help' in sys.argv[1:]:
+        usage()
+        return 0
+    elif argc == 2:
         target = argv[1]
     elif argc > 2:
-        print(f'''\
-usage: {sys.argv[0]} [TARGET]
-If TARGET is not specified, it defaults to turtle1
-''', end="", file=sys.stderr)
+        usage()
         return 2
 
     fn = FollowerNode(target)

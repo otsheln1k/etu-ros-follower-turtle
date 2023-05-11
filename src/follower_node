@@ -128,8 +128,6 @@ class FollowerNode:
                 pen.append(0)
         target = rospy.get_param('target', self._target)
 
-        print(x0, y0, t0, vscale, vmax, pen, target, file=sys.stderr)
-
         savesigint = signal.signal(signal.SIGINT, self.on_signal)
         savesigterm = signal.signal(signal.SIGTERM, self.on_signal)
 

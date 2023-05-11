@@ -1,0 +1,25 @@
+<?xml version="1.0"?>
+<package format="2">
+  <name>follower_turtle</name>
+  <version>0.0.1</version>
+  <description>
+    Spawn a turtle that follows another one in turtlesim
+  </description>
+
+  <maintainer email="leo.parfentiev@gmail.com">Leonid Parfentev</maintainer>
+  <license>BSD</license>
+  <url type="website">https://github.com/otsheln1k/etu-ros-follower-turtle</url>
+  <author email="leo.parfentiev@gmail.com">Leonid Parfentev</author>
+
+  <buildtool_depend>catkin</buildtool_depend>
+  <build_depend>rospy</build_depend>
+  <build_depend>geometry_msgs</build_depend>
+  <build_depend>turtlesim</build_depend>
+  <build_export_depend>rospy</build_export_depend>
+  <build_export_depend>geometry_msgs</build_export_depend>
+  <build_export_depend>turtlesim</build_export_depend>
+  <exec_depend>rospy</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>turtlesim</exec_depend>
+
+</package>

@@ -1,0 +1,182 @@
+#!/usr/bin/env python3
+
+import sys
+import signal
+import math
+
+import rospy
+
+from turtlesim.msg import Pose
+from turtlesim.srv import Spawn, Kill, SetPen
+from geometry_msgs.msg import Twist, Vector3
+
+
+# 2d vector math helpers
+
+def dangle(a1, a2):
+    if abs(a1 - a2) >= math.pi:
+        if a1 > a2:
+            a2 += math.pi*2
+        else:
+            a1 += math.pi*2
+    return a1 - a2
+
+def veclen(v):
+    return math.sqrt(v[0]*v[0] + v[1]*v[1])
+
+def delta(p1, p2):
+    return (p1[0]-p2[0], p1[1]-p2[1])
+
+def distance(p1, p2):
+    return veclen(delta(p1, p2))
+
+def vecangle(v):
+    return math.atan2(v[1], v[0])
+
+
+# True if p2 ~= p1 + k*d, k>=0
+# assumes d is normalized
+def is_line(p1, p2, d):
+    dist = distance(p1, p2)
+    p2x = (p1[0] + d[0]*dist, p1[1] + d[1]*dist)
+    EPS = 0.1
+    return distance(p2x, p2) < EPS
+
+# Calculate an arc to get from sp to dp.  Theta from dp is ignored, but theta
+# from sp is used to avoid rotating in place. Straight line from sp to dp in
+# forward or backward direction is handled specially.
+#
+#   sp, dp: source and dest Pose values
+#   vscale: multiplied by distance to dp to get velocity
+#   vmax:   upper limit on velocity
+def posediff(dp, sp, vscale, vmax):
+    DISTTHRESH = 0.1
+    BACKTHRESH = math.pi * 0.90
+    p1 = (sp.x, sp.y)
+    p2 = (dp.x, dp.y)
+    direc = (math.cos(sp.theta),
+             math.sin(sp.theta))
+    d = delta(p2, p1)
+    s = veclen(d)
+    if s < DISTTHRESH:
+        return (0.0, 0.0)
+    elif is_line(p1, p2, direc):
+        a = min(vscale*s, vmax)
+        th = 0
+    else:
+        salpha = dangle(sp.theta, vecangle(d))
+        sign = math.copysign(1, salpha)
+        alpha = abs(salpha)
+        if alpha > BACKTHRESH:
+            a = 0
+            th = math.pi  # arbitrary value really
+        else:
+            arclen = 2.0*alpha
+            if alpha > math.pi/2.0:
+                alpha = math.pi - alpha
+            r = -sign * s / (2.0*math.sin(alpha))
+            c = arclen * abs(r)
+            a = min(vscale*c, vmax)
+            th = a / r
+    return a, th
+
+
+# ROS stuff
+
+def wait_mk_service(name, t):
+    rospy.loginfo(f"waiting for service {name!r}")
+    rospy.wait_for_service(name)
+    srv = rospy.ServiceProxy(name, t)
+    return srv
+
+class FollowerNode:
+    def on_signal(self, s, _frame):
+        if s == signal.SIGINT:
+            print(file=sys.stderr)
+        self._stop = True
+
+    def on_target_moved(self, pose):
+        self._p1 = pose
+
+    def on_self_moved(self, pose):
+        self._p2 = pose
+
+    def __init__(self, another):
+        self._another = another
+        # state
+        self._p1 = None
+        self._p2 = None
+        self._stop = False
+
+    def run(self):
+        rospy.init_node('turtle_pursuer', anonymous=True)
+        spawn = wait_mk_service('spawn', Spawn)
+        kill = wait_mk_service('kill', Kill)
+
+        x0 = rospy.get_param('initial/x', 1.0)
+        y0 = rospy.get_param('initial/y', 1.0)
+        t0 = rospy.get_param('initial/t', 0.0)
+        vscale = rospy.get_param('velocity/scale', 2.0)
+        vmax = rospy.get_param('velocity/max', 4.0)
+        pen = rospy.get_param('initial/pen', None)
+        if pen:
+            if len(pen) < 3:
+                pen = [*pen, *([pen[0]]*3)][:3]
+            if len(pen) < 4:
+                pen.append(2)
+            if len(pen) < 5:
+                pen.append(0)
+
+        savesigint = signal.signal(signal.SIGINT, self.on_signal)
+        savesigterm = signal.signal(signal.SIGTERM, self.on_signal)
+
+        name = spawn(x=x0, y=y0, theta=t0).name
+        rospy.loginfo(f"spawned turtle {name!r}")
+
+        sub1 = rospy.Subscriber(
+                f'{self._another}/pose',
+                Pose, self.on_target_moved,
+            )
+        sub2 = rospy.Subscriber(
+                f'{name}/pose',
+                Pose, self.on_self_moved,
+            )
+
+        if pen:
+            set_pen = wait_mk_service(f'{name}/set_pen', SetPen)
+            set_pen(*pen)
+
+        pub = rospy.Publisher(f'{name}/cmd_vel', Twist, queue_size=1)
+        rate = rospy.Rate(10)
+        while not self._stop:
+            if None in (self._p1, self._p2):
+                continue
+            a, th = posediff(self._p1, self._p2, vscale, vmax)
+            pub.publish(Twist(
+                    linear=Vector3(a, 0.0 ,0.0),
+                    angular=Vector3(0.0, 0.0, th),
+                ))
+            rate.sleep()
+
+        kill(name=name)
+        signal.signal(signal.SIGINT, savesigint)
+        signal.signal(signal.SIGTERM, savesigterm)
+
+
+def main():
+    argc = len(sys.argv)
+    target = 'turtle1'
+    if argc == 2:
+        target = argv[1]
+    elif argc > 2:
+        print(f'''\
+usage: {sys.argv[0]} [TARGET]
+If TARGET is not specified, it defaults to turtle1
+''', end="", file=sys.stderr)
+        return 2
+
+    fn = FollowerNode(target)
+    fn.run()
+
+if __name__ == "__main__":
+    exit(main() or 0)

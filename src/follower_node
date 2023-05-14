@@ -101,15 +101,13 @@ class FollowerNode:
     def on_self_moved(self, pose):
         self._p2 = pose
 
-    def __init__(self, target):
-        self._target = target
-        # state
+    def __init__(self):
         self._p1 = None
         self._p2 = None
         self._stop = False
 
     def run(self):
-        rospy.init_node('turtle_pursuer', anonymous=True)
+        rospy.init_node('follower_node', anonymous=True)
         spawn = wait_mk_service('spawn', Spawn)
         kill = wait_mk_service('kill', Kill)
 
@@ -126,7 +124,7 @@ class FollowerNode:
                 pen.append(2)
             if len(pen) < 5:
                 pen.append(0)
-        target = rospy.get_param('target', self._target)
+        target = rospy.get_param('target', 'turtle1')
 
         savesigint = signal.signal(signal.SIGINT, self.on_signal)
         savesigterm = signal.signal(signal.SIGTERM, self.on_signal)
@@ -135,7 +133,7 @@ class FollowerNode:
         rospy.loginfo(f"spawned turtle {name!r}")
 
         sub1 = rospy.Subscriber(
-                f'{self._target}/pose',
+                f'{target}/pose',
                 Pose, self.on_target_moved,
             )
         sub2 = rospy.Subscriber(
@@ -184,13 +182,11 @@ ROS parameters used (all private):
 ''', end="", file=sys.stderr)
 
 def main():
-    argc = len(sys.argv)
-    target = 'turtle1'
     if ['--help'] == sys.argv[1:]:
         usage()
         return 0
 
-    fn = FollowerNode(target)
+    fn = FollowerNode()
     fn.run()
 
 if __name__ == "__main__":
